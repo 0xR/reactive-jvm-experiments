@@ -58,17 +58,17 @@ suspend fun tcpServer(vertx: Vertx) {
         socket.pipeTo(writeStream)
         val writeStreamFlux = Flux.from(writeStream)
 
-        val shouldDelayFlux = (Flux.interval(3.seconds.toJavaDuration()).map {
+        val shouldDelayFlux = Flux.interval(3.seconds.toJavaDuration()).map {
             it % 2 == 0L
-        }).startWith(false)
+        }.startWith(false)
 
         val subscription = shouldDelayFlux.switchMap { shouldDelay ->
             if (shouldDelay) writeStreamFlux.delayElements(1000.milliseconds.toJavaDuration()) else writeStreamFlux
         }
-            .subscribe({
+            .subscribe {
                 val timeString = LocalDateTime.now().format(ISO_LOCAL_TIME)
                 println("[$timeString] Got ${it.length()} bytes ")
-            })
+            }
 
         socket.closeHandler {
             subscription.dispose()
