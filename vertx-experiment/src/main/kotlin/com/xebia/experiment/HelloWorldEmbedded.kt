@@ -2,22 +2,16 @@ package com.xebia.experiment;
 
 import io.vertx.core.Vertx
 import io.vertx.core.buffer.Buffer
-import io.vertx.ext.reactivestreams.ReactiveReadStream
 import io.vertx.ext.reactivestreams.ReactiveWriteStream
 import io.vertx.ext.web.Router
 import io.vertx.kotlin.core.closeAwait
 import io.vertx.kotlin.core.http.listenAwait
 import io.vertx.kotlin.core.net.listenAwait
-import java.net.BindException
 import reactor.core.publisher.Flux
-import reactor.core.publisher.toFlux
-import reactor.core.publisher.toMono
-import java.time.Duration
-import java.time.temporal.ChronoUnit
-import java.time.temporal.TemporalUnit
-import java.util.Arrays
+import java.net.BindException
 import kotlin.time.ExperimentalTime
 import kotlin.time.milliseconds
+import kotlin.time.seconds
 import kotlin.time.toJavaDuration
 
 
@@ -57,12 +51,16 @@ suspend fun tcpServer(vertx: Vertx) {
     val server = vertx.createNetServer();
     server.connectHandler { socket ->
         val writeStream = ReactiveWriteStream.writeStream<Buffer>(vertx)
-        socket.pipeTo(writeStream);
-        Flux.from(writeStream)
-            .delayElements(1000.milliseconds.toJavaDuration())
-            .subscribe({
-                println("Got ${it.length()} bytes");
-            })
+        socket.pipeTo(writeStream)
+        val writeStreamFlux = Flux.from(writeStream)
+
+        Flux.interval(10.seconds.toJavaDuration()).map {
+            it % 2 == 0L
+        }.flatMap {
+            if (it) writeStreamFlux else writeStreamFlux.delayElements(1000.milliseconds.toJavaDuration()) }
+                .subscribe({
+                    println("Got ${it.length()} bytes ")
+                })
 
     };
     server.listenAwait(8090, "localhost");
