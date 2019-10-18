@@ -9,6 +9,8 @@ import io.vertx.kotlin.core.http.listenAwait
 import io.vertx.kotlin.core.net.listenAwait
 import reactor.core.publisher.Flux
 import java.net.BindException
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter.ISO_LOCAL_TIME
 import kotlin.time.ExperimentalTime
 import kotlin.time.milliseconds
 import kotlin.time.seconds
@@ -57,10 +59,12 @@ suspend fun tcpServer(vertx: Vertx) {
         Flux.interval(10.seconds.toJavaDuration()).map {
             it % 2 == 0L
         }.flatMap {
-            if (it) writeStreamFlux else writeStreamFlux.delayElements(1000.milliseconds.toJavaDuration()) }
-                .subscribe({
-                    println("Got ${it.length()} bytes ")
-                })
+            if (it) writeStreamFlux else writeStreamFlux.delayElements(1000.milliseconds.toJavaDuration())
+        }
+            .subscribe({
+                val timeString = LocalDateTime.now().format(ISO_LOCAL_TIME)
+                println("[$timeString] Got ${it.length()} bytes ")
+            })
 
     };
     server.listenAwait(8090, "localhost");
