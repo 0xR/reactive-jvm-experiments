@@ -21,6 +21,8 @@ dependencies {
   compile "io.vertx:vertx-reactive-streams:$version"
   compile "io.vertx:vertx-lang-kotlin:$version"
   compile "io.vertx:vertx-lang-kotlin-coroutines:$version"
+  implementation platform('io.projectreactor:reactor-bom:Bismuth-RELEASE')
+  implementation 'io.projectreactor:reactor-core'
 }
 
 compileKotlin {
