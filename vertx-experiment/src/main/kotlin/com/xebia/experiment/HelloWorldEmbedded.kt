@@ -4,6 +4,7 @@ import io.vertx.core.Vertx
 import io.vertx.ext.web.Router
 import io.vertx.kotlin.core.closeAwait
 import io.vertx.kotlin.core.http.listenAwait
+import io.vertx.kotlin.core.net.listenAwait
 import java.net.BindException
 
 
@@ -33,4 +34,16 @@ suspend fun main() {
         System.err.println("Failed to listen on port $port")
         vertx.closeAwait()
     }
+
+    tcpServer(vertx);
+}
+
+suspend fun tcpServer(vertx: Vertx) {
+    val server = vertx.createNetServer();
+    server.connectHandler { socket ->
+        socket.handler { buffer ->
+            System.out.println("I received some bytes: " + buffer.length());
+        };
+    };
+    server.listenAwait(8090, "localhost");
 }
