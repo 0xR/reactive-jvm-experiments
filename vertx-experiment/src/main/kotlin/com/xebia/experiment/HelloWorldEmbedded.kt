@@ -1,7 +1,10 @@
 package com.xebia.experiment;
 
+import io.vertx.core.Vertx
 import io.vertx.core.VertxOptions
 import io.vertx.core.buffer.Buffer
+import io.vertx.core.streams.ReadStream
+import io.vertx.core.streams.WriteStream
 import io.vertx.ext.reactivestreams.ReactiveReadStream
 import io.vertx.ext.reactivestreams.ReactiveWriteStream
 import io.vertx.kotlin.core.net.listenAwait
@@ -30,28 +33,36 @@ suspend fun main() {
 
     val server = vertx.createNetServer();
     server.connectHandler { socket ->
-        val reactiveWriteStream = ReactiveWriteStream.writeStream<Buffer>(vertx)
-        socket.pipeTo(reactiveWriteStream)
-        val writeStreamFlux = Flux.from(reactiveWriteStream)
+        processWithReactor(vertx, socket, eventBusPublisher) { flux ->
+            val shouldDelayFlux = Flux.interval(10.seconds.toJavaDuration()).map {
+                it % 2 == 0L
+            }.startWith(false)
 
-        val reactiveReadStream = ReactiveReadStream.readStream<Buffer>()
-
-        val shouldDelayFlux = Flux.interval(10.seconds.toJavaDuration()).map {
-            it % 2 == 0L
-        }.startWith(false)
-
-        shouldDelayFlux.switchMap { shouldDelay ->
-            if (shouldDelay) writeStreamFlux.delayElements(1000.milliseconds.toJavaDuration()) else writeStreamFlux
+            shouldDelayFlux.switchMap { shouldDelay ->
+                if (shouldDelay) flux.delayElements(1000.milliseconds.toJavaDuration()) else flux
+            }
         }
-            .subscribe(reactiveReadStream)
-
-        socket.closeHandler {
-            reactiveReadStream.onComplete()
-        }
-
-        reactiveReadStream.pipeTo(eventBusPublisher)
     };
 
     val netServer = server.listenAwait(8090, "localhost")
     println("Listening on tcp://localhost:${netServer.actualPort()}")
+}
+
+
+fun <Input, Output> processWithReactor(
+    vertx: Vertx,
+    inputSteam: ReadStream<Input>,
+    outputStream: WriteStream<Output>,
+    processor: (Flux<Input>) -> Flux<Output>
+) {
+    val reactiveWriteStream = ReactiveWriteStream.writeStream<Input>(vertx)
+    inputSteam.pipeTo(reactiveWriteStream)
+
+    val writeStreamFlux = Flux.from(reactiveWriteStream)
+    val processedFlux = processor(writeStreamFlux)
+
+    val reactiveReadStream = ReactiveReadStream.readStream<Output>()
+    processedFlux.subscribe(reactiveReadStream)
+
+    reactiveReadStream.pipeTo(outputStream)
 }
