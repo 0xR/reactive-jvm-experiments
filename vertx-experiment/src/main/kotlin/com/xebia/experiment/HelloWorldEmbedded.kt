@@ -34,9 +34,10 @@ suspend fun main() {
     val server = vertx.createNetServer();
     server.connectHandler { socket ->
         processWithReactor(vertx, socket, eventBusPublisher) { flux ->
-            val shouldDelayFlux = Flux.interval(10.seconds.toJavaDuration()).map {
+            val shouldDelayFlux = Flux.interval(1.seconds.toJavaDuration()).map {
                 it % 2 == 0L
             }.startWith(false)
+                .takeUntilOther(flux)
 
             shouldDelayFlux.switchMap { shouldDelay ->
                 if (shouldDelay) flux.delayElements(1000.milliseconds.toJavaDuration()) else flux
