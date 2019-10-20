@@ -19,9 +19,42 @@ import io.vertx.kotlin.core.Vertx as VertxKt
 
 
 @ExperimentalTime
-suspend fun main() {
+suspend fun main(arguments: Array<String>) {
     val vertx = VertxKt.clusteredVertxAwait(VertxOptions());
+    if (arguments.size > 0 && arguments[0] == "tcpserver") {
+        runTcpserver(vertx)
+    } else {
+        runWebsocketServer(vertx)
+    }
+}
 
+@ExperimentalTime
+suspend fun runTcpserver(vertx: Vertx) {
+    val eventBus = vertx.eventBus()
+
+    val publishAdress = "publish.all"
+    val eventBusPublisher = eventBus.publisher<Buffer>(publishAdress)
+
+    val server = vertx.createNetServer();
+    server.connectHandler { socket ->
+        processWithReactor(vertx, socket, eventBusPublisher) { socketFlux ->
+            val shouldDelayFlux = Flux.interval(5.seconds.toJavaDuration()).map {
+                it % 2 == 0L
+            }.startWith(false)
+                .takeUntilOther(socketFlux.takeLast(1))
+
+            shouldDelayFlux.switchMap { shouldDelay ->
+                if (shouldDelay) socketFlux.delayElements(1000.milliseconds.toJavaDuration()) else socketFlux
+            }
+        }
+    };
+
+    val netServer = server.listenAwait(8090, "localhost")
+    println("Listening on tcp://localhost:${netServer.actualPort()}!")
+
+}
+
+fun runWebsocketServer(vertx: Vertx) {
     val eventBus = vertx.eventBus()
 
     val publishAdress = "publish.all"
@@ -29,26 +62,8 @@ suspend fun main() {
         val timeString = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_TIME)
         println("[$timeString] EventBus handler got buffer length: ${it.body().length()}")
     }
-    val eventBusPublisher = eventBus.publisher<Buffer>(publishAdress)
-
-    val server = vertx.createNetServer();
-    server.connectHandler { socket ->
-        processWithReactor(vertx, socket, eventBusPublisher) { flux ->
-            val shouldDelayFlux = Flux.interval(1.seconds.toJavaDuration()).map {
-                it % 2 == 0L
-            }.startWith(false)
-                .takeUntilOther(flux)
-
-            shouldDelayFlux.switchMap { shouldDelay ->
-                if (shouldDelay) flux.delayElements(1000.milliseconds.toJavaDuration()) else flux
-            }
-        }
-    };
-
-    val netServer = server.listenAwait(8090, "localhost")
-    println("Listening on tcp://localhost:${netServer.actualPort()}")
+    println("Listening to eventbus!")
 }
-
 
 fun <Input, Output> processWithReactor(
     vertx: Vertx,
