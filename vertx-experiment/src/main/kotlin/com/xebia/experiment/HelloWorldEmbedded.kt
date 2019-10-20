@@ -71,14 +71,14 @@ fun <Input, Output> processWithReactor(
     outputStream: WriteStream<Output>,
     processor: (Flux<Input>) -> Flux<Output>
 ) {
-    val reactiveWriteStream = ReactiveWriteStream.writeStream<Input>(vertx)
-    inputSteam.pipeTo(reactiveWriteStream)
+    val publisher = ReactiveWriteStream.writeStream<Input>(vertx)
+    inputSteam.pipeTo(publisher)
 
-    val writeStreamFlux = Flux.from(reactiveWriteStream)
+    val writeStreamFlux = Flux.from(publisher)
     val processedFlux = processor(writeStreamFlux)
 
-    val reactiveReadStream = ReactiveReadStream.readStream<Output>()
-    processedFlux.subscribe(reactiveReadStream)
+    val subscriber = ReactiveReadStream.readStream<Output>()
+    processedFlux.subscribe(subscriber)
 
-    reactiveReadStream.pipeTo(outputStream)
+    subscriber.pipeTo(outputStream)
 }
